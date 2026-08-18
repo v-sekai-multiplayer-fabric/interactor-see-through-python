@@ -1,0 +1,24 @@
+[project]
+name = "interactor-see-through"
+version = "0.1.0.dev1"
+description = "The reference half of the see-through A/B: single-image layer decomposition, behind the weft command bus"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+# iceoryx2 is pinned to the version contract-bus transcribed its C ABI from. The two halves of
+# this bus are one decision, and a floating pin here would move one of them on its own.
+dependencies = ["iceoryx2==0.9.3"]
+
+[project.optional-dependencies]
+# The pipeline. Absent from the default install because the interactor is testable without it,
+# and because the weights it loads are on the network volume rather than in this package.
+reference = ["torch", "diffusers", "transformers", "pillow"]
+
+[project.scripts]
+see-through-interactor = "seethrough.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["seethrough"]
