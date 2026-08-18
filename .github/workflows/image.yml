@@ -24,15 +24,20 @@ jobs:
       - uses: actions/checkout@v4
       # The gate and the parse need no bus, no GPU and no weights, so they run before
       # anything is built and fail the workflow on their own.
-      # The gate needs no bus, no GPU and no weights. The agreement check needs the C++ half
-      # on disk, and says how many comparisons it made when it is not there.
+      # The C++ half, so the agreement check has something to compare against. Actions
+      # refuses a checkout above the workspace directory, so it lands inside and says where
+      # through ST_CPP_ROOT rather than being assumed to be a sibling.
       - uses: actions/checkout@v4
         with:
           repository: v-sekai-multiplayer-fabric/interactor-see-through-cpp
-          path: ../see-through-cpp
-        continue-on-error: true
+          path: .cpp-half
       - run: python3 proof/test_command.py
+      # No iceoryx2 is installed here on purpose. The agreement is pure text and must be
+      # answerable on a machine that could not serve a request, which is what
+      # weft_harness/agree.py exists to make true.
       - run: python3 proof/test_agreement.py
+        env:
+          ST_CPP_ROOT: ${{ github.workspace }}/.cpp-half
 
   image:
     needs: proof

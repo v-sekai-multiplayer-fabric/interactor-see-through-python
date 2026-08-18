@@ -9,6 +9,7 @@ agreement.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -20,9 +21,11 @@ sys.path.insert(0, str(ROOT / "third_party/harness/python"))
 from seethrough import command  # noqa: E402
 from weft_harness import check_matches_header  # noqa: E402
 
-# The C++ interactor, when the workspace has it checked out beside this one. `default.xml`
-# puts both on side 3 of the hexagon, so this is where it is or it is nowhere.
-CPP = ROOT.parent / "see-through-cpp"
+# The C++ interactor, when it is on disk. `default.xml` puts both on side 3, so a workspace
+# has it beside this one; a CI runner checks it out wherever it likes and says where through
+# ST_CPP_ROOT. A runner cannot use the sibling path -- Actions refuses a checkout above the
+# workspace directory, which is how this check first went red rather than quiet.
+CPP = Path(os.environ.get("ST_CPP_ROOT") or (ROOT.parent / "see-through-cpp"))
 
 FAILURES = []
 COMPARED = 0
