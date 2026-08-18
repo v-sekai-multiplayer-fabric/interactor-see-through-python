@@ -1,0 +1,106 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "interactor-see-through-python: single-image layer decomposition, on the command bus"
+abstract: >
+  The reference half of the see-through A/B. One command in, reply bytes out,
+  over the harness command bus, on the PyTorch pipeline and iceoryx2's Python
+  binding -- sharing nothing with the C++ half but the wire between them, which
+  is what lets the two disagree.
+authors:
+  - family-names: Lee
+    given-names: "K. S. Ernest (iFire)"
+    email: ernest.lee@chibifire.com
+    orcid: "https://orcid.org/0000-0003-4570-1436"
+version: 0.1.0-dev.1
+date-released: "2026-08-17"
+license: MIT
+repository-code: "https://github.com/v-sekai-multiplayer-fabric/interactor-see-through-python"
+keywords:
+  - layer-decomposition
+  - diffusion
+  - anime
+  - iceoryx2
+  - runpod
+
+# What this repository is built on: the design it serves, the contracts it vendors, and the
+# transport layer whose image carries it.
+references:
+
+  - type: article
+    title: "See-through: Single-image Layer Decomposition for Anime Characters"
+    authors:
+      - family-names: Lin
+        given-names: Jian
+      - family-names: Li
+        given-names: Chengze
+      - family-names: Qin
+        given-names: Haoyun
+      - family-names: Chan
+        given-names: "Kwun Wang"
+      - family-names: Jin
+        given-names: Yanghua
+      - family-names: Liu
+        given-names: Hanyuan
+      - family-names: Choy
+        given-names: "Chun Wang Stephen"
+      - family-names: Liu
+        given-names: Xueting
+    year: 2026
+    doi: "10.1145/3799902.3811209"
+    publisher:
+      name: "Association for Computing Machinery"
+    notes: >
+      The design this interactor serves: one image of an anime character in,
+      the layers it is composed of out, with depth ordering. The production
+      settings this repository gates on are that pipeline's, not this one's.
+
+  - type: software
+    title: "contract-bus: the weft plane harness, the iceoryx2 C ABI as a dlsym dispatch table"
+    authors:
+      - family-names: Lee
+        given-names: "K. S. Ernest (iFire)"
+        orcid: "https://orcid.org/0000-0003-4570-1436"
+    year: 2026
+    url: "https://github.com/v-sekai-multiplayer-fabric/contract-bus"
+    notes: >
+      Vendored as third_party/harness. weft/command.hpp decides the service
+      names, the weft::byte payload and the request-id envelope; weft/limits.hpp
+      decides the 128 KiB bound on one message.
+
+  - type: software
+    title: "transport-runpod: the RunPod Serverless transport layer"
+    authors:
+      - family-names: Lee
+        given-names: "K. S. Ernest (iFire)"
+        orcid: "https://orcid.org/0000-0003-4570-1436"
+    year: 2026
+    url: "https://github.com/v-sekai-multiplayer-fabric/transport-runpod"
+    notes: >
+      What puts a RunPod job on the bus this interactor answers on. Its image is
+      the base of this one's, so the job loop is taken rather than rebuilt.
+
+  - type: software
+    title: "interactor-see-through-cpp: the ggml half of the same A/B"
+    authors:
+      - family-names: Lee
+        given-names: "K. S. Ernest (iFire)"
+        orcid: "https://orcid.org/0000-0003-4570-1436"
+    year: 2026
+    url: "https://github.com/v-sekai-multiplayer-fabric/interactor-see-through-cpp"
+    notes: >
+      The other implementation. proof/test_agreement.py reads its gate constants
+      out of include/seethrough/command.h and fails when they differ from this
+      one's.
+
+  - type: software
+    title: "iceoryx2: lock-free zero-copy inter-process communication"
+    authors:
+      - name: "Contributors to the Eclipse Foundation"
+    year: 2026
+    version: "0.9.3"
+    license: Apache-2.0
+    url: "https://github.com/eclipse-iceoryx/iceoryx2"
+    notes: >
+      The bus, through its PyPI binding, pinned to the version contract-bus
+      transcribed its C ABI from. The binding names the payload type after the
+      ctypes type, so weft_harness/bus.py sets it to weft::byte explicitly.
