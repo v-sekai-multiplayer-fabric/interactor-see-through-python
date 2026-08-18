@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "third_party/harness/python"))
 
 from dataclasses import dataclass  # noqa: E402
 
-from etf_read import Atom, loads  # noqa: E402
+from reply_read import Atom, loads  # noqa: E402
 from seethrough import command  # noqa: E402
 from seethrough.engine import Result  # noqa: E402
 

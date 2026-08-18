@@ -36,10 +36,10 @@ def main():
     dead = State(engine=Recorder(), out_root=command.OUT_DIR_DEFAULT, opened=False)
 
     for name, state, line in [
-        ("res.etf", live, "decompose /in.png --res 512 --steps 30"),
-        ("no_engine.etf", dead, "decompose /in.png --res 1280 --steps 30"),
-        ("ok.etf", live, "decompose /in.png --res 1280 --steps 30"),
-        ("verb.etf", live, "render /in.png"),
+        ("res.cbor", live, "decompose /in.png --res 512 --steps 30"),
+        ("no_engine.cbor", dead, "decompose /in.png --res 1280 --steps 30"),
+        ("ok.cbor", live, "decompose /in.png --res 1280 --steps 30"),
+        ("verb.cbor", live, "render /in.png"),
     ]:
         (out / name).write_bytes(command.ask(state, line))
     print(f"wrote 4 replies to {out}")
