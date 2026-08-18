@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import cbor
+from . import reply
 
 # Production settings. A run below either bound is refused rather than served: low step counts
 # make degenerate layers -- undifferentiated depth medians, soft detail -- that look plausible
@@ -33,7 +33,17 @@ OUT_DIR_DEFAULT = "/runpod-volume/see-through/out"
 
 
 class Refused(Exception):
-    """The command will not be run, and the message says which number was refused."""
+    """The command will not be run.
+
+    Carries a reason atom and the numbers behind it, not a sentence. A caller selects a branch
+    on the atom, and no caller can match prose -- RFD 0124 is the argument. `detail` becomes the
+    map in `{:error, {reason, %{...}}}`.
+    """
+
+    def __init__(self, reason: str, **detail):
+        self.reason = reason
+        self.detail = detail
+        super().__init__(f"{reason} {detail}" if detail else reason)
 
 
 @dataclass
@@ -47,7 +57,7 @@ class Request:
 def parse(line: str) -> Request:
     tokens = line.split()
     if not tokens or tokens[0] != "decompose":
-        raise Refused("unknown command; this interactor answers `decompose`")
+        raise Refused("unknown_command", verb=tokens[0] if tokens else "")
 
     in_path = None
     res = 0
@@ -64,7 +74,7 @@ def parse(line: str) -> Request:
             # the gate refuses -- with a message about the step count rather than about the
             # argument that was left off, which is the harder one to act on.
             if i + 1 >= len(rest) or rest[i + 1].startswith("--"):
-                raise Refused(f"--{flag} needs a value")
+                raise Refused("missing_value", flag=flag)
             val = rest[i + 1]
             i += 2
             if flag == "res":
@@ -74,25 +84,19 @@ def parse(line: str) -> Request:
             elif flag == "out":
                 out_dir = val
             else:
-                raise Refused(f"unknown flag --{flag}")
+                raise Refused("unknown_flag", flag=flag)
             continue
         if in_path is not None:
-            raise Refused("decompose takes one input path")
+            raise Refused("too_many_input_paths")
         in_path = tok
         i += 1
 
     if in_path is None:
-        raise Refused("decompose needs an input path")
+        raise Refused("missing_input_path")
     if res < MIN_RES:
-        raise Refused(
-            f"--res {res} is below the production setting {MIN_RES}; "
-            "a smaller run is not evidence"
-        )
+        raise Refused("res_below_minimum", got=res, minimum=MIN_RES)
     if steps < MIN_STEPS:
-        raise Refused(
-            f"--steps {steps} is below the production setting {MIN_STEPS}; "
-            "a smaller run is not evidence"
-        )
+        raise Refused("steps_below_minimum", got=steps, minimum=MIN_STEPS)
     return Request(in_path=in_path, res=res, steps=steps, out_dir=out_dir)
 
 
@@ -100,7 +104,7 @@ def _int(val: str, flag: str) -> int:
     try:
         return int(val)
     except ValueError:
-        raise Refused(f"{flag} takes a number, not {val!r}") from None
+        raise Refused("not_a_number", flag=flag, value=val) from None
 
 
 def ask(state, command: str) -> bytes:
@@ -112,26 +116,32 @@ def ask(state, command: str) -> bytes:
     try:
         req = parse(command)
     except Refused as why:
-        return cbor.error(str(why))
+        return reply.error(why.reason, **why.detail)
 
     out_dir = req.out_dir or state.out_root
     if not state.opened:
-        return cbor.error("no engine: the weights were never loaded")
+        return reply.error("no_engine")
 
     try:
         result = state.engine.decompose(req, out_dir)
     except Exception as why:  # noqa: BLE001 - the job result is the only log some runs leave
-        return cbor.error(f"decompose failed: {why}")
+        # The engine's message is a person's to read, so it goes under :detail where no
+        # program looks. What a caller matches on is the atom.
+        return reply.error("decompose_failed", detail=str(why)[:200])
 
     # Where the layers are, how many, and how long the engine says it took. Not the pixels:
     # the bus carries one value of at most 128 KiB and a layer set is larger than that, so the
     # artefacts stay on the volume and this says where they are.
-    return cbor.mapping(
+    #
+    # The keys are atoms, so an Elixir caller matches %{layers: n} rather than reaching into a
+    # map with binary keys.
+    A = reply.Atom
+    return reply.ok(
         {
-            "in": req.in_path,
-            "out": out_dir,
-            "sidecar": result.sidecar,
-            "layers": result.layers,
-            "ms": result.ms,
+            A("in"): req.in_path,
+            A("out"): out_dir,
+            A("sidecar"): result.sidecar,
+            A("layers"): result.layers,
+            A("ms"): result.ms,
         }
     )
