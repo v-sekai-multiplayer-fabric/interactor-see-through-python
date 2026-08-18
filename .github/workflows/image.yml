@@ -39,6 +39,16 @@ jobs:
         env:
           ST_CPP_ROOT: ${{ github.workspace }}/.cpp-half
 
+      # The authoritative check on RFD 0124. The Python reader beside it only establishes that
+      # a Python encoder and a Python decoder agree; whether either speaks Elixir is a question
+      # only a virtual machine answers, so one runs here.
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.17"
+      - run: python3 proof/write_replies.py /tmp/replies
+      - run: elixir proof/elixir_compat.exs /tmp/replies
+
   image:
     needs: proof
     runs-on: ubuntu-latest
