@@ -13,7 +13,18 @@ FROM ${TRANSPORT_IMAGE}
 # No weights in the image. They are cached on the network volume RunPod mounts at
 # /runpod-volume, written once and read by every worker in the data center; an image carrying
 # them re-downloads gigabytes into each cold worker instead.
-ENV ST_WEIGHTS_DIR=/runpod-volume/see-through/weights \
+# Upstream's pipeline, at a pinned commit, because this interactor runs it rather than
+# reimplementing it. Its weights are not here: they are the 14 GB cache on the network volume,
+# which is written once and read by every worker in the data center.
+ARG SEE_THROUGH_REF=main
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 --branch ${SEE_THROUGH_REF} \
+         https://github.com/shitagaki-lab/see-through.git /opt/see-through \
+    && ln -sf common/assets /opt/see-through/assets
+
+ENV ST_UPSTREAM=/opt/see-through \
+    ST_WEIGHTS_DIR=/runpod-volume/see-through/hf \
     ST_OUT_DIR=/runpod-volume/see-through/out \
     ST_ENGINE=reference
 

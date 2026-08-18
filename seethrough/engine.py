@@ -10,6 +10,9 @@ SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,37 +51,73 @@ class AbsentEngine:
 
 
 class ReferenceEngine:
-    """The reference pipeline, loaded from the network volume.
+    """Upstream's pipeline, run as it is documented to be run.
 
-    Imports are inside `open` on purpose: torch and diffusers cost seconds to import and a
-    worker that cannot find its weights should fail with the path rather than after paying
-    that. It is also what lets every test in `proof/` run on a machine with neither.
+    `shitagaki-lab/see-through` (Apache-2.0) is the paper's own implementation, and this calls
+    its `inference_psd.py` rather than reimplementing the stratification. That is deliberate:
+    the working system came first and this wraps it, so a difference between what an endpoint
+    produces and what upstream produces is this repository's fault and nowhere else's.
+
+    Run directly on an RTX 4090 it takes about 171 s at 1280 and writes a layered PSD beside a
+    depth PSD. Those are the numbers `service-see-through` measures against.
+
+    A subprocess rather than an import, for the reason the two-process split exists at all: the
+    pipeline loads several gigabytes and can die on a bad input, and a worker whose HTTP loop
+    shares that address space dies with it.
     """
 
     def __init__(self) -> None:
-        self.pipe = None
+        self.root = None
+        self.hf_home = None
 
     def open(self, weights_dir: str) -> None:
-        root = Path(weights_dir)
-        if not root.is_dir():
-            raise EngineAbsent(f"no see-through weights at {root}")
-        # The load itself belongs to whichever revision of the pipeline is on the volume, and
-        # this repository does not pin it: the volume is the cache and its contents are what
-        # the A/B is run against. What is fixed here is where it is looked for.
-        raise EngineAbsent(
-            f"{root} exists, but this build has no reference pipeline wired to it yet"
-        )
+        # `weights_dir` is the HuggingFace cache on the network volume. It is not downloaded
+        # here: a worker that fetched 14 GB on its first job would pay for it on every cold
+        # start, which is what the volume exists to stop.
+        cache = Path(weights_dir)
+        if not cache.is_dir():
+            raise EngineAbsent(
+                f"no see-through weight cache at {cache}; the network volume holds it and "
+                "nothing downloads it into a worker"
+            )
+        src = Path(os.environ.get("ST_UPSTREAM") or "/opt/see-through")
+        if not (src / "inference/scripts/inference_psd.py").is_file():
+            raise EngineAbsent(f"no see-through checkout at {src}")
+        self.root, self.hf_home = src, cache
 
     def decompose(self, req, out_dir: str) -> Result:
-        # The timing is taken around the engine's own work and reported by the program that
-        # did it. A duration inferred anywhere else has been wrong here before, confidently
-        # and in the direction of a defect that did not exist.
+        if self.root is None:
+            raise EngineAbsent("open() was not called or did not succeed")
+
+        env = dict(os.environ, HF_HOME=str(self.hf_home))
+        cmd = [
+            sys.executable, "-u", "inference/scripts/inference_psd.py",
+            "--srcp", req.in_path, "--save_to_psd",
+        ]
+
+        # The timing is taken around the work by the process that waits for it, and it is the
+        # only clock in the reply. A duration inferred from anywhere else has been wrong here
+        # before, confidently, in the direction of a defect that did not exist.
         start = time.monotonic()
-        raise EngineAbsent("no reference pipeline")
-        elapsed_ms = int((time.monotonic() - start) * 1000)  # noqa: F841 - kept with the shape
+        done = subprocess.run(cmd, cwd=self.root, env=env, capture_output=True, text=True)
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+
+        if done.returncode != 0:
+            tail = (done.stderr or done.stdout or "").strip().splitlines()[-3:]
+            raise EngineAbsent(f"inference_psd.py exited {done.returncode}: {' / '.join(tail)}")
+
+        produced = sorted((self.root / "workspace/layerdiff_output").glob("*.psd"))
+        if not produced:
+            # Exiting zero and writing nothing is the failure mode a return code cannot catch,
+            # and the one that would let an empty result be measured as a fast one.
+            raise EngineAbsent("inference_psd.py exited 0 and wrote no PSD")
+
+        psd = produced[0]
+        layers = len(list((psd.parent / psd.stem).glob("*.png"))) if (psd.parent / psd.stem).is_dir() else 0
+        return Result(layers=layers, ms=elapsed_ms, sidecar=psd.name)
 
     def close(self) -> None:
-        self.pipe = None
+        self.root = None
 
 
 def engine_from_env(kind: str):

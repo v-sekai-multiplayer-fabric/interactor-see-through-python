@@ -28,7 +28,7 @@ MIN_STEPS = 30
 # RunPod mounts the network volume here in every worker. Weights are cached on it rather than
 # baked into the image: an image carrying them re-downloads gigabytes into every cold worker,
 # and the volume is written once and read by all of them.
-WEIGHTS_DIR_DEFAULT = "/runpod-volume/see-through/weights"
+WEIGHTS_DIR_DEFAULT = "/runpod-volume/see-through/hf"
 OUT_DIR_DEFAULT = "/runpod-volume/see-through/out"
 
 
